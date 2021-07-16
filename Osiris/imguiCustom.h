@@ -28,4 +28,7 @@ namespace ImGui
     void progressBarFullWidth(float fraction, float height) noexcept;
     void textUnformattedCentered(const char* text) noexcept;
     void hotkey(const char* label, KeyBind& key, float samelineOffset = 0.0f, const ImVec2& size = { 100.0f, 0.0f }) noexcept;
+
+    IMGUI_API void StyleColorsGold(ImGuiStyle* dst = NULL);    // R3nzTheCodeGOD's gold style
+
 }

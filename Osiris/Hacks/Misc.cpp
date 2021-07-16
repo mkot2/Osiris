@@ -79,10 +79,7 @@ struct MiscConfig {
     bool revealMoney{ false };
     bool revealSuspect{ false };
     bool revealVotes{ false };
-    bool fixAnimationLOD{ false };
-    bool fixBoneMatrix{ false };
-    bool fixMovement{ false };
-    bool disableModelOcclusion{ false };
+    bool bypassSvPure{ true };
     bool nameStealer{ false };
     bool disablePanoramablur{ false };
     bool killMessage{ false };
@@ -153,14 +150,9 @@ bool Misc::shouldRevealSuspect() noexcept
     return miscConfig.revealSuspect;
 }
 
-bool Misc::shouldDisableModelOcclusion() noexcept
+bool Misc::shouldEnableSvPureBypass() noexcept
 {
-    return miscConfig.disableModelOcclusion;
-}
-
-bool Misc::shouldFixBoneMatrix() noexcept
-{
-    return miscConfig.fixBoneMatrix;
+    return miscConfig.bypassSvPure;
 }
 
 bool Misc::isRadarHackOn() noexcept
@@ -705,17 +697,15 @@ void Misc::killMessage(GameEvent& event) noexcept
 
 void Misc::fixMovement(UserCmd* cmd, float yaw) noexcept
 {
-    if (miscConfig.fixMovement) {
-        float oldYaw = yaw + (yaw < 0.0f ? 360.0f : 0.0f);
-        float newYaw = cmd->viewangles.y + (cmd->viewangles.y < 0.0f ? 360.0f : 0.0f);
-        float yawDelta = newYaw < oldYaw ? fabsf(newYaw - oldYaw) : 360.0f - fabsf(newYaw - oldYaw);
-        yawDelta = 360.0f - yawDelta;
+    float oldYaw = yaw + (yaw < 0.0f ? 360.0f : 0.0f);
+    float newYaw = cmd->viewangles.y + (cmd->viewangles.y < 0.0f ? 360.0f : 0.0f);
+    float yawDelta = newYaw < oldYaw ? fabsf(newYaw - oldYaw) : 360.0f - fabsf(newYaw - oldYaw);
+    yawDelta = 360.0f - yawDelta;
 
-        const float forwardmove = cmd->forwardmove;
-        const float sidemove = cmd->sidemove;
-        cmd->forwardmove = std::cos(Helpers::deg2rad(yawDelta)) * forwardmove + std::cos(Helpers::deg2rad(yawDelta + 90.0f)) * sidemove;
-        cmd->sidemove = std::sin(Helpers::deg2rad(yawDelta)) * forwardmove + std::sin(Helpers::deg2rad(yawDelta + 90.0f)) * sidemove;
-    }
+    const float forwardmove = cmd->forwardmove;
+    const float sidemove = cmd->sidemove;
+    cmd->forwardmove = std::cos(Helpers::deg2rad(yawDelta)) * forwardmove + std::cos(Helpers::deg2rad(yawDelta + 90.0f)) * sidemove;
+    cmd->sidemove = std::sin(Helpers::deg2rad(yawDelta)) * forwardmove + std::sin(Helpers::deg2rad(yawDelta + 90.0f)) * sidemove;
 }
 
 void Misc::antiAfkKick(UserCmd* cmd) noexcept
@@ -727,7 +717,7 @@ void Misc::antiAfkKick(UserCmd* cmd) noexcept
 void Misc::fixAnimationLOD(FrameStage stage) noexcept
 {
 #ifdef _WIN32
-    if (miscConfig.fixAnimationLOD && stage == FrameStage::RENDER_START) {
+    if (stage == FrameStage::RENDER_START) {
         if (!localPlayer)
             return;
 
@@ -1334,10 +1324,7 @@ void Misc::drawGUI(bool contentOnly) noexcept
         ImGui::EndPopup();
     }
     ImGui::PopID();
-    ImGui::Checkbox("Fix animation LOD", &miscConfig.fixAnimationLOD);
-    ImGui::Checkbox("Fix bone matrix", &miscConfig.fixBoneMatrix);
-    ImGui::Checkbox("Fix movement", &miscConfig.fixMovement);
-    ImGui::Checkbox("Disable model occlusion", &miscConfig.disableModelOcclusion);
+    ImGui::Checkbox("Bypass sv_pure", &miscConfig.bypassSvPure);
     ImGui::SliderFloat("Aspect Ratio", &miscConfig.aspectratio, 0.0f, 5.0f, "%.2f");
     ImGui::NextColumn();
     ImGui::Checkbox("Disable HUD blur", &miscConfig.disablePanoramablur);
@@ -1543,10 +1530,7 @@ static void from_json(const json& j, MiscConfig& m)
     read<value_t::object>(j, "Spectator list", m.spectatorList);
     read<value_t::object>(j, "Watermark", m.watermark);
     read<value_t::object>(j, "Offscreen Enemies", m.offscreenEnemies);
-    read(j, "Fix animation LOD", m.fixAnimationLOD);
-    read(j, "Fix bone matrix", m.fixBoneMatrix);
-    read(j, "Fix movement", m.fixMovement);
-    read(j, "Disable model occlusion", m.disableModelOcclusion);
+    read(j, "Bypass sv_pure", m.bypassSvPure);
     read(j, "Aspect Ratio", m.aspectratio);
     read(j, "Kill message", m.killMessage);
     read<value_t::string>(j, "Kill message string", m.killMessageString);
@@ -1681,10 +1665,7 @@ static void to_json(json& j, const MiscConfig& o)
     WRITE("Spectator list", spectatorList);
     WRITE("Watermark", watermark);
     WRITE("Offscreen Enemies", offscreenEnemies);
-    WRITE("Fix animation LOD", fixAnimationLOD);
-    WRITE("Fix bone matrix", fixBoneMatrix);
-    WRITE("Fix movement", fixMovement);
-    WRITE("Disable model occlusion", disableModelOcclusion);
+    WRITE("Bypass sv_pure", bypassSvPure);
     WRITE("Aspect Ratio", aspectratio);
     WRITE("Kill message", killMessage);
     WRITE("Kill message string", killMessageString);

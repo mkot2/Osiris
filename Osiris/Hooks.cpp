@@ -160,12 +160,7 @@ static bool __STDCALL createMove(LINUX_ARGS(void* thisptr,) float inputSampleTim
     if (!cmd->commandNumber)
         return result;
 
-#ifdef _WIN32
-    bool& sendPacket = *reinterpret_cast<bool*>(*reinterpret_cast<std::uintptr_t*>(FRAME_ADDRESS()) - 0x1C);
-#else
-    bool dummy;
-    bool& sendPacket = dummy;
-#endif
+    bool& sendPacket = *reinterpret_cast<bool*>(*reinterpret_cast<std::uintptr_t*>(FRAME_ADDRESS()) - WIN32_LINUX(0x1C, 0x18));
 
     static auto previousViewAngles{ cmd->viewangles };
     const auto currentViewAngles{ cmd->viewangles };
@@ -381,7 +376,7 @@ struct RenderableInfo {
 
 static int __STDCALL listLeavesInBox(LINUX_ARGS(void* thisptr, ) const Vector& mins, const Vector& maxs, unsigned short* list, int listMax) noexcept
 {
-    if (Misc::shouldDisableModelOcclusion() && RETURN_ADDRESS() == memory->insertIntoTree) {
+    if (RETURN_ADDRESS() == memory->insertIntoTree) {
         if (const auto info = *reinterpret_cast<RenderableInfo**>(FRAME_ADDRESS() + WIN32_LINUX(0x18, 0x10 + 0x948)); info && info->renderable) {
             if (const auto ent = VirtualMethod::call<Entity*, WIN32_LINUX(7, 8)>(info->renderable - sizeof(std::uintptr_t)); ent && ent->isPlayer()) {
                 constexpr float maxCoord = 16384.0f;
@@ -501,9 +496,28 @@ static bool __STDCALL dispatchUserMessage(LINUX_ARGS(void* thisptr, ) int messag
 }
 
 #ifdef _WIN32
+static int __FASTCALL getUnverifiedFileHashes(LINUX_ARGS(void* thisptr, ) int maxFiles)
+{
+    if (Misc::shouldEnableSvPureBypass())
+        return 0;
+    return hooks->fileSystem.callOriginal<int, 101>(maxFiles);
+}
+
+static int __FASTCALL canLoadThirdPartyFiles(LINUX_ARGS(void* thisptr, ) void* edx) noexcept
+{
+    if (Misc::shouldEnableSvPureBypass())
+        return 1;
+    return hooks->fileSystem.callOriginal<int, 127>();
+}
+
+#endif
+
+#ifdef _WIN32
 
 Hooks::Hooks(HMODULE moduleHandle) noexcept : moduleHandle{ moduleHandle }
 {
+    while (!GetModuleHandleA("serverbrowser.dll")) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 
@@ -605,6 +619,12 @@ void Hooks::install() noexcept
     engine.hookAt(101, &getScreenAspectRatio);
     engine.hookAt(WIN32_LINUX(218, 219), &getDemoPlaybackParameters);
 
+#ifdef _WIN32
+    fileSystem.init(interfaces->fileSystem);
+    fileSystem.hookAt(101, &getUnverifiedFileHashes);
+    fileSystem.hookAt(127, &canLoadThirdPartyFiles);
+#endif
+
     inventory.init(memory->inventoryManager->getLocalInventory());
     inventory.hookAt(1, &soUpdated);
 
@@ -690,6 +710,9 @@ void Hooks::uninstall() noexcept
     client.restore();
     clientMode.restore();
     engine.restore();
+#ifdef _WIN32
+    fileSystem.restore();
+#endif
     inventory.restore();
     inventoryManager.restore();
     modelRender.restore();
@@ -755,6 +778,8 @@ static int pollEvent(SDL_Event* event) noexcept
 
 Hooks::Hooks() noexcept
 {
+    while (!dlopen("./bin/linux64/serverbrowser_client.so", RTLD_NOLOAD | RTLD_NOW)) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
     interfaces = std::make_unique<const Interfaces>();
     memory = std::make_unique<const Memory>();
 
